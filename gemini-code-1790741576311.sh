@@ -15,21 +15,21 @@ fi
 
 echo "[+] Dispositivo detectado: $VENTOY_DEV"
 
-# 2. Crear archivo .dat de 4GB usando herramientas nativas de Arch
-echo "[+] Generando archivo de persistencia (4GB ext4 vtoycow)..."
-dd if=/dev/zero of=arch_persist.dat bs=1M count=4096 status=progress
-mkfs.ext4 -F -L vtoycow arch_persist.dat
-
-# 3. Montar USB
+# 2. Montar el USB PRIMERO para no llenar la memoria RAM
 MOUNT_DIR="/mnt/ventoy_usb"
 mkdir -p "$MOUNT_DIR"
 mount "$VENTOY_DEV" "$MOUNT_DIR"
 
-# 4. Mover la persistencia al USB
-echo "[+] Moviendo arch_persist.dat al USB..."
-mv arch_persist.dat "$MOUNT_DIR/"
+# 3. Crear archivo .dat de 4GB DIRECTAMENTE en el USB
+echo "[+] Generando archivo de persistencia de 4GB en la memoria USB..."
+echo "[!] Esto puede tardar un par de minutos según la velocidad de tu USB."
+dd if=/dev/zero of="$MOUNT_DIR/arch_persist.dat" bs=1M count=4096 status=progress
 
-# 5. Auto-detectar nombre de la ISO de Arch
+# 4. Darle formato ext4 con la etiqueta requerida vtoycow
+echo "[+] Formateando el contenedor de persistencia..."
+mkfs.ext4 -F -L vtoycow "$MOUNT_DIR/arch_persist.dat"
+
+# 5. Auto-detectar nombre de la ISO de Arch en el USB
 ISO_NAME=$(ls "$MOUNT_DIR" | grep -i "archlinux.*\.iso" | head -n 1)
 
 if [ -z "$ISO_NAME" ]; then
@@ -37,7 +37,7 @@ if [ -z "$ISO_NAME" ]; then
     read -p "Escribe el nombre exacto del archivo .iso: " ISO_NAME
 fi
 
-# 6. Generar ventoy.json
+# 6. Generar el archivo de configuración ventoy.json
 mkdir -p "$MOUNT_DIR/ventoy"
 
 cat <<EOF > "$MOUNT_DIR/ventoy/ventoy.json"
@@ -53,7 +53,9 @@ cat <<EOF > "$MOUNT_DIR/ventoy/ventoy.json"
 }
 EOF
 
-# 7. Limpieza final
+# 7. Desmontar USB de forma segura
+echo "[+] Guardando cambios y desmontando USB..."
+sync
 umount "$MOUNT_DIR"
 rm -rf "$MOUNT_DIR"
 
